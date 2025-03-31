@@ -1,15 +1,14 @@
 import torch.nn as nn
 import torch
 from typing import Callable, Union
-from modules import LTCCell, CfCCell
-from utils import ternary_operation_elif
+from modules import LTCCell, CfCCell, CfCImprovedCell
 from torch import Tensor
 
 
 class LNN(nn.Module):
     def __init__(
             self,
-            cell: Callable[..., Union[LTCCell, CfCCell]],
+            cell: Callable[..., Union[LTCCell, CfCCell, CfCImprovedCell]],
             in_features: int,
             hidden_features: int,
             out_features: int,
@@ -17,11 +16,10 @@ class LNN(nn.Module):
             backbone_depth: int = 1
     ) -> None:
         super(LNN, self).__init__()
-        self.cell = ternary_operation_elif(
-            cell == LTCCell, LTCCell(in_features, hidden_features),
-            cell == CfCCell, CfCCell(in_features, hidden_features, backbone_features, backbone_depth),
-            None
-        )
+        if cell == LTCCell:
+            self.cell = LTCCell(in_features, hidden_features)
+        elif cell == CfCCell or cell == CfCImprovedCell:
+            self.cell = cell(in_features, hidden_features, backbone_features=backbone_features, backbone_depth=backbone_depth)
 
         # Output layer
         self.out = nn.Linear(hidden_features, out_features)

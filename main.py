@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from modules import LTCCell, CfCCell
+from modules import LTCCell, CfCCell, CfCImprovedCell
 from model import LNN
 from dataset import get_sequential_MNIST_dataloaders, get_sequential_transforms
 from train import Trainer
@@ -11,8 +11,8 @@ cell = LTCCell
 in_features = 784
 hidden_features = 128
 out_features = 10
-backbone_features = 64 # CfCCell only
-backbone_depth = 4 # CfCCell only
+backbone_features = 64 # CfC only
+backbone_depth = 4 # CfC only
 
 # Training parameters
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -56,3 +56,4 @@ if __name__ == '__main__':
     )
     trainer.fit()
     trainer._save_model(path='model.pth')
+

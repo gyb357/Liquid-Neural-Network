@@ -98,3 +98,52 @@ class CfCCell(nn.Module):
         h_new = -self.A * torch.exp(-t * (torch.abs(self.tau) + torch.abs(f))) * f + self.A
         return h_new
 
+
+class CfCImprovedCell(nn.Module):
+    def __init__(
+            self,
+            in_features: int,
+            hidden_features: int,
+            backbone_features: int = 1,
+            backbone_depth: int = 1
+    ) -> None:
+        super(CfCImprovedCell, self).__init__()
+        # Activation function
+        activation = nn.ReLU # nn.Tanh
+
+        # Input layer
+        input_layer = nn.ModuleList([
+            nn.Linear(in_features + hidden_features, backbone_features),
+            activation()
+        ])
+
+        # Backbone layers
+        self.backbone = nn.ModuleList([
+            nn.Linear(backbone_features, backbone_features),
+            activation()
+        ] * (backbone_depth - 1))
+        self.backbone = nn.Sequential(*input_layer, *self.backbone)
+
+        # Neural network heads
+        self.head_g = nn.Linear(backbone_features, hidden_features)
+        self.head_f = nn.Linear(backbone_features, hidden_features)
+        self.head_h = nn.Linear(backbone_features, hidden_features)
+        self.tau = nn.Linear(backbone_features, hidden_features)
+
+    def forward(self, x: Tensor, h: Tensor, t: Tensor) -> Tensor:
+        t = t.view(x.size(0), 1)
+        x = torch.cat([x, h], 1)
+
+        # Backbone
+        x = self.backbone(x)
+
+        # Neural network heads
+        head_g = F.tanh(self.head_g(x))
+        head_f = self.head_f(x)
+        head_h = F.tanh(self.head_h(x))
+        tau = self.tau(x)
+        
+        sigma = F.sigmoid((tau + head_f) * t)
+        h_new = head_h * (1 - sigma) + head_g * sigma
+        return h_new
+
