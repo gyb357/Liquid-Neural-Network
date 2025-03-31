@@ -1,30 +1,31 @@
 import torch
-from modules import LTCCell, CFCCell
+import torch.nn as nn
+from modules import LTCCell, CfCCell
 from model import LNN
-from mnist import get_transforms, get_dataloaders
+from dataset import get_sequential_MNIST_dataloaders, get_sequential_transforms
 from train import Trainer
 
 
 # Model parameters
-cell = CFCCell
-in_features = 1
+cell = LTCCell
+in_features = 28
 hidden_features = 128
 out_features = 10
-
-# LTCCell specific
-dt = 0.01
-# CFCCell specific
-backbone_depth = 8
+backbone_features = 64 # CfCCell only
+backbone_depth = 4 # CfCCell only
 
 # Training parameters
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+loss_fn = nn.CrossEntropyLoss()
 epochs = 50
 batch_size = 128
-lr = 0.01
+lr = 0.001
+tau = 0.001
 
 
 if __name__ == '__main__':
     # Device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f'device: {device}')
 
     # Model
     model = LNN(
@@ -32,24 +33,26 @@ if __name__ == '__main__':
         in_features=in_features,
         hidden_features=hidden_features,
         out_features=out_features,
-        dt=dt,
+        backbone_features=backbone_features,
         backbone_depth=backbone_depth
-    ).to(device)
+    )
     parameters = model._get_parameters()
     print(f"Number of parameters: {parameters}")
 
     # Dataset loaders
-    train_loader, test_loader = get_dataloaders(batch_size=batch_size, transforms=get_transforms())
+    train_loader, test_loader = get_sequential_MNIST_dataloaders(batch_size=batch_size, transform=get_sequential_transforms())
 
-    # Train
+    # Trainr
     trainer = Trainer(
         device=device,
         model=model,
+        loss_fn=loss_fn,
         train_loader=train_loader,
         test_loader=test_loader,
         epochs=epochs,
         batch_size=batch_size,
-        lr=lr
+        lr=lr,
+        tau=tau
     )
-    trainer.train()
-
+    trainer.fit()
+    trainer._save_model(path='model.pth')

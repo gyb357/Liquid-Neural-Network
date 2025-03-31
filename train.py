@@ -3,6 +3,8 @@ import torch.optim as optim
 import torch
 from torch import device
 from torch.utils.data import DataLoader
+from torch import Tensor
+from typing import Tuple
 from tqdm import tqdm
 
 
@@ -11,19 +13,22 @@ class Trainer():
             self,
             device: device,
             model: nn.Module,
+            loss_fn: nn.Module,
             train_loader: DataLoader,
             test_loader: DataLoader,
             epochs: int = 100,
             batch_size: int = 128,
-            lr: float = 0.01
+            lr: float = 0.001,
+            tau: float = 0.001
     ) -> None:
-        # Device
-        self.device = device
         # Model
-        self.model = model
+        self.device = device
+        self.model = model.to(device)
+
         # Data loaders
         self.train_loader = train_loader
         self.test_loader = test_loader
+
         # Training parameters
         self.epochs = epochs
         self.batch_size = batch_size
@@ -31,52 +36,57 @@ class Trainer():
 
         # Train modules
         self.optimizer = optim.Adam(model.parameters(), lr=lr)
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = loss_fn.to(device)
 
-    def eval(self, data_loader: DataLoader) -> float:
+        # Tau
+        self.tau = tau
+
+    def _save_model(self, path: str) -> None:
+        torch.save(self.model.state_dict(), path)
+
+    def _get_data_ts(self, data: Tensor) -> Tuple[Tensor, Tensor]:
+        data = data.squeeze(1)                                                  # Remove channel dimension
+        batch_size, seq_len, _ = data.size()                                    # (batch_size, seq_len, in_features)
+        ts = torch.ones(batch_size, seq_len, 1, device=self.device) * self.tau  # (batch_size, seq_len)
+        return data, ts
+
+    def fit(self) -> None:
+        self.model.train()
+
+        for epoch in range(1, self.epochs + 1):
+            for (data, labels) in tqdm(self.train_loader, desc=f"[Epoch {epoch}]"):
+                data, labels = data.to(self.device), labels.to(self.device)
+                self.optimizer.zero_grad()
+
+                data, ts = self._get_data_ts(data)
+                output = self.model(data, ts)
+                output = output[:, -1, :]
+
+                loss = self.criterion(output, labels)
+                loss.backward()
+                self.optimizer.step()
+            print(f"[Epoch {epoch}] Loss: {loss.item():.4f}")
+
+            # Evaluate the model
+            val_acc = self.eval()
+            print(f"[Epoch {epoch}] Validation Accuracy: {val_acc:.2f}%")
+
+    def eval(self) -> float:
         self.model.eval()
         correct, total = 0, 0
 
         with torch.no_grad():
-            for x, y in data_loader:
-                x, y = x.to(self.device), y.to(self.device)
-                output = self.model(x)
-                preds = output.argmax(dim=1)
-                correct += (preds == y).sum().item()
-                total += y.size(0)
+            for data, labels in tqdm(self.test_loader, desc="[Eval]"):
+                data, labels = data.to(self.device), labels.to(self.device)
 
-        acc = correct / total * 100
-        return acc
+                data, ts = self._get_data_ts(data)
+                output = self.model(data, ts)
+                output = output[:, -1, :]
+                output = output.argmax(dim=1)
+                
+                correct += (output == labels).sum().item()
+                total += labels.size(0)
 
-    def train(self) -> None:
-        self.model.train()
-
-        for epoch in range(1, self.epochs + 1):
-            total_loss = 0
-            correct = 0
-            total = 0
-
-            for batch_idx, (x, y) in enumerate(tqdm(self.train_loader, desc=f"Epoch {epoch}")):
-                x, y = x.to(self.device), y.to(self.device)
-                output = self.model(x)
-                loss = self.criterion(output, y)
-
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-
-                total_loss += loss.item()
-                pred = output.argmax(dim=1)
-                correct += (pred == y).sum().item()
-                total += y.size(0)
-
-            train_acc = correct / total * 100
-            avg_loss = total_loss / len(self.train_loader)
-            print(f"[Epoch {epoch}] Loss: {avg_loss:.4f}, Accuracy: {train_acc:.2f}%")
-
-            val_acc = self.eval(self.test_loader)
-            print(f"Test Accuracy: {val_acc:.2f}%")
-
-        # Model save
-        torch.save(self.model.state_dict(), 'model.pth')
+        accuracy = 100 * correct / total
+        return accuracy
 

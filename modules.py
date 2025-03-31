@@ -17,8 +17,8 @@ class LTCCell(nn.Module):
 
         # Parameters
         self.bias = nn.Parameter(torch.zeros(hidden_features))
-        self.tau = nn.Parameter(torch.ones(hidden_features))
-        self.A = nn.Parameter(torch.zeros(hidden_features))
+        self.tau = nn.Parameter(torch.zeros(hidden_features))
+        self.A = nn.Parameter(torch.ones(hidden_features))
 
         # Attributes
         self.hidden_features = hidden_features
@@ -30,48 +30,51 @@ class LTCCell(nn.Module):
         for p in self.parameters():
             if p.dim() == 2:
                 nn.init.xavier_uniform_(p)
-                
+
     def forward(self, x: Tensor, h: Tensor, t: Tensor) -> Tensor:
         # f = f(x(t), I(t), t, θ)
         f = F.tanh(self.w_i(x) + self.w_h(h) + self.bias)
 
         # τ Must be positive (softplus)
-        tau = F.softplus(self.tau) + 1e-8 # epsilon for stability
+        tau = F.softplus(self.tau) + 1e-8  # epsilon for stability
 
-        # FusedStep
-        # x(t + ∆t) = (x(t) + ∆t * f(x(t), I(t), t, θ) ⊙ A) / (1 + ∆t * (1 / τ + f(x(t), I(t), t, θ)))
-        h_new = (h + t * f * self.A) / (1 + t * (1 / tau + f)) # FusedStep
+        # Fused Step
+        # x(t + ∆t) = (x(t) + ∆t * f ⊙ A) / (1 + ∆t * (1 / τ + f))
+        h_new = (h + t * f * self.A) / (1 + t * (1 / tau + f))
         return h_new
 
 
-class CFCCell(nn.Module):
+class CfCCell(nn.Module):
     def __init__(
             self,
             in_features: int,
             hidden_features: int,
+            backbone_features: int = 1,
             backbone_depth: int = 1
     ) -> None:
-        super(CFCCell, self).__init__()
+        super(CfCCell, self).__init__()
+        # Activation function
+        activation = nn.Tanh
+
         # Input layer
-        layers = [nn.Linear(in_features + hidden_features, hidden_features, bias=False)]
+        input_layer = nn.ModuleList([
+            nn.Linear(in_features + hidden_features, backbone_features),
+            activation()
+        ])
 
         # Backbone layers
-        for _ in range(backbone_depth):
-            layers.append(nn.Sequential(
-                nn.Linear(hidden_features, hidden_features, bias=False),
-                nn.BatchNorm1d(hidden_features),
-                nn.LeakyReLU(inplace=True),
-            ))
-        self.backbone = nn.Sequential(*layers)
+        self.backbone = nn.ModuleList([
+            nn.Linear(backbone_features, backbone_features),
+            activation()
+        ] * (backbone_depth - 1))
+        self.backbone = nn.Sequential(*input_layer, *self.backbone)
 
-        # Neural network heads
-        self.head_g = nn.Linear(hidden_features, hidden_features)
-        self.head_f = nn.Linear(hidden_features, hidden_features)
-        self.head_h = nn.Linear(hidden_features, hidden_features)
-        self.tau = nn.Linear(hidden_features, hidden_features)
+        # Linear layer for f
+        self.f = nn.Linear(backbone_features, hidden_features)
 
-        # Attributes
-        self.hidden_features = hidden_features
+        # Parameters
+        self.tau = torch.nn.Parameter(torch.zeros(1, hidden_features))
+        self.A = torch.nn.Parameter(torch.ones(1, hidden_features))
 
         # Initialize weights
         self._init_weights()
@@ -82,29 +85,19 @@ class CFCCell(nn.Module):
                 nn.init.xavier_uniform_(p)
 
     def forward(self, x: Tensor, h: Tensor, t: Tensor) -> Tensor:
-        # Ensure t is a tensor with the correct shape
-        if not isinstance(t, Tensor):
-            t = torch.tensor(t, device=x.device, dtype=x.dtype)
-            t = t.expand(x.size(0), 1)
-
-        # Concatenate time step
         t = t.view(x.size(0), 1)
-        x = torch.cat([x, h], dim=1)
+        x = torch.cat([x, h], 1)
 
-        # Backbone layers
+        # Backbone
         x = self.backbone(x)
 
-        # Neural network heads
-        head_g = F.tanh(self.head_g(x))
-        head_f = self.head_f(x)
-        head_h = F.tanh(self.head_h(x))
+        # τ Must be positive (softplus)
+        tau = F.softplus(self.tau) + 1e-8  # epsilon for stability
 
-        # Approximation of τ
-        tau = self.tau(x)
-
-        # Advanced numerical DE solvers
-        # x(t) = σ * (-f(x, I, θ_f) * t) ⊙ g(x, I, θ_g) + [1 - σ * (-[f(x, I, θ_f)] * t)] ⊙ h(x, I, θ_h)
-        sigma = F.sigmoid((tau + head_f) * t)
-        h_new = head_h * (1 - sigma) + head_g * sigma
+        # f = f(I(t), θ)
+        f = self.f(x)
+        
+        # x(t) ≈ (x0 - A) * e(-t * (τ + f)) * f + A
+        h_new = -self.A * torch.exp(-t * (tau + torch.abs(f))) * f + self.A
         return h_new
 
