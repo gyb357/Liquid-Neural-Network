@@ -54,7 +54,7 @@ class CfCCell(nn.Module):
     ) -> None:
         super(CfCCell, self).__init__()
         # Activation function
-        activation = nn.Tanh
+        activation = nn.ReLU # nn.Tanh
 
         # Input layer
         input_layer = nn.ModuleList([
