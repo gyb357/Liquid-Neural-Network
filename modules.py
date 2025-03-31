@@ -91,13 +91,10 @@ class CfCCell(nn.Module):
         # Backbone
         x = self.backbone(x)
 
-        # τ Must be positive (softplus)
-        tau = F.softplus(self.tau) + 1e-8  # epsilon for stability
-
         # f = f(I(t), θ)
         f = self.f(x)
         
         # x(t) ≈ (x0 - A) * e(-t * (τ + f)) * f + A
-        h_new = -self.A * torch.exp(-t * (tau + torch.abs(f))) * f + self.A
+        h_new = -self.A * torch.exp(-t * (torch.abs(self.tau) + torch.abs(f))) * f + self.A
         return h_new
 
