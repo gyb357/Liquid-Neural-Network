@@ -8,7 +8,7 @@ from train import Trainer
 
 # Model parameters
 cell = LTCCell
-in_features = 28
+in_features = 784
 hidden_features = 128
 out_features = 10
 backbone_features = 64 # CfCCell only
@@ -17,7 +17,7 @@ backbone_depth = 4 # CfCCell only
 # Training parameters
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 loss_fn = nn.CrossEntropyLoss()
-epochs = 50
+epochs = 100
 batch_size = 128
 lr = 0.001
 tau = 0.001

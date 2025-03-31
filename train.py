@@ -44,10 +44,19 @@ class Trainer():
     def _save_model(self, path: str) -> None:
         torch.save(self.model.state_dict(), path)
 
+    # batch_size x seq_len x in_features
+    # def _get_data_ts(self, data: Tensor) -> Tuple[Tensor, Tensor]:
+    #     data = data.squeeze(1)                                                  # Remove channel dimension
+    #     batch_size, seq_len, _ = data.size()                                    # (batch_size, seq_len, in_features)
+    #     ts = torch.ones(batch_size, seq_len, 1, device=self.device) * self.tau  # (batch_size, seq_len)
+    #     return data, ts
+
+    # batch_size x 1 x 784
     def _get_data_ts(self, data: Tensor) -> Tuple[Tensor, Tensor]:
-        data = data.squeeze(1)                                                  # Remove channel dimension
-        batch_size, seq_len, _ = data.size()                                    # (batch_size, seq_len, in_features)
-        ts = torch.ones(batch_size, seq_len, 1, device=self.device) * self.tau  # (batch_size, seq_len)
+        batch_size = data.size(0)
+        # data: (batch_size, 1, 28, 28) -> (batch_size, 1, 784)
+        data = data.view(batch_size, 1, -1)
+        ts = torch.ones(batch_size, 1, 1, device=self.device) * self.tau  # 시퀀스 길이가 1
         return data, ts
 
     def fit(self) -> None:
