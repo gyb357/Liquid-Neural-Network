@@ -18,7 +18,7 @@ class LNN(nn.Module):
         super(LNN, self).__init__()
         if cell == LTCCell:
             self.cell = LTCCell(in_features, hidden_features)
-        elif cell == CfCCell or cell == CfCImprovedCell:
+        elif cell in [CfCCell, CfCImprovedCell]:
             self.cell = cell(in_features, hidden_features, backbone_features=backbone_features, backbone_depth=backbone_depth)
 
         # Output layer
@@ -48,6 +48,23 @@ class LNN(nn.Module):
         # Output layer
         out = torch.stack(outputs, dim=1)
         return out
+
+
+class LNNEnsemble(nn.Module):
+    def __init__(
+        self,
+        base_model: LNN,
+        ensemble_size: int = 2
+    ) -> None:
+        super(LNNEnsemble, self).__init__()
+        self.models = nn.ModuleList([base_model() for _ in range(ensemble_size)])
+
+    def _get_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    def forward(self, x: Tensor, ts: Tensor) -> Tensor:
+        outputs = [model(x, ts) for model in self.models]
+        return torch.stack(outputs, dim=0).mean(dim=0)
 
 
 class LSTM(nn.Module):
