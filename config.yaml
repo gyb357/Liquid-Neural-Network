@@ -1,25 +1,36 @@
 # Device
-device: 'cuda'          # 'cuda', 'cpu'
+device: 'cuda'
+
 
 # Model parameters
 model:
-  cell: 'LTCCell'       # 'LTCCell', 'CfCCell', 'CfCImprovedCell'
-  in_features: 28
-  hidden_features: 128
-  out_features: 10
-  backbone_features: 64 # CfC only
-  backbone_depth: 4     # CfC only
+  cell: 'LTCCell'
+  in_features: 4
 
-# Ensemble parameters
-ensemble:
-  enable_ensemble: false
-  ensemble_size: 2
 
-# Training parameters
-train:
-  loss_fn: 'CE'         # 'CE', 'MSE', 'BCE'
-  epochs: 100
-  batch_size: 128
-  lr: 0.001
-  tau: 0.001
+
+# # Device
+# device: 'cuda'          # 'cuda', 'cpu'
+
+# # Model parameters
+# model:
+#   cell: 'LTCCell'       # 'LTCCell', 'CfCCell', 'CfCImprovedCell'
+#   in_features: 28
+#   hidden_features: 128
+#   out_features: 10
+#   backbone_features: 64 # CfC only
+#   backbone_depth: 4     # CfC only
+
+# # Ensemble parameters
+# ensemble:
+#   enable_ensemble: false
+#   ensemble_size: 2
+
+# # Training parameters
+# train:
+#   loss_fn: 'CE'         # 'CE', 'MSE', 'BCE'
+#   epochs: 100
+#   batch_size: 128
+#   lr: 0.001
+#   tau: 0.001
 

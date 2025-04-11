@@ -3,3 +3,4 @@ torchvision
 torchaudio
 tqdm
 pyyaml
+pykrx

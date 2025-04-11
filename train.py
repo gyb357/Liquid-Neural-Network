@@ -1,11 +1,13 @@
 import torch.nn as nn
-import torch.optim as optim
-import torch
+# import torch.optim as optim
+# import torch
+# import matplotlib.pyplot as plt
 from torch import device
-from torch.utils.data import DataLoader
-from torch import Tensor
-from typing import Tuple
-from tqdm import tqdm
+from dataset import KRXDataLoader
+# from loss import MAPELoss
+# from tqdm import tqdm
+# from typing import Tuple
+# from torch.utils.data import DataLoader
 
 
 class Trainer():
@@ -13,89 +15,125 @@ class Trainer():
             self,
             device: device,
             model: nn.Module,
-            loss_fn: nn.Module,
-            train_loader: DataLoader,
-            test_loader: DataLoader,
-            epochs: int = 100,
-            batch_size: int = 128,
-            lr: float = 0.001,
-            tau: float = 0.001
-    ) -> None:
-        # Model
-        self.device = device
-        self.model = model.to(device)
+            dataloader: KRXDataLoader,
+            
+    )
 
-        # Data loaders
-        self.train_loader = train_loader
-        self.test_loader = test_loader
 
-        # Training parameters
-        self.epochs = epochs
-        self.batch_size = batch_size
-        self.lr = lr
+# class Trainer():
+#     def __init__(
+#             self,
+#             device: device,
+#             model: nn.Module,
+#             dataloader: KRXDataLoader,
+#             epochs: int,
+#             seq_len: int,
+#             lr: float,
+#             do_lnn: bool,
+#             tau: float,
+#             plot: bool = False,
+#             save: bool = True
+#     ) -> None:
+#         # Attributes
+#         self.device = device
+#         self.model = model
+#         self.epochs = epochs
+#         self.seq_len = seq_len
+#         self.do_lnn = do_lnn
+#         self.tau = tau
+#         self.plot = plot
+#         self.save = save
+        
+#         # Train modules
+#         self.optimizer = optim.Adam(model.parameters(), lr=lr)
+#         self.criterion = nn.MSELoss()
+#         self.metric = MAPELoss()
 
-        # Train modules
-        self.optimizer = optim.Adam(model.parameters(), lr=lr)
-        self.criterion = loss_fn.to(device)
+#         # Data loaders
+#         self.train_loader, self.val_loader, self.test_loader = dataloader.get_dataloader()
 
-        # Tau
-        self.tau = tau
+#     def save_model(self, path: str) -> None:
+#         torch.save(self.model.state_dict(), path)
 
-    def _save_model(self, path: str) -> None:
-        torch.save(self.model.state_dict(), path)
+#     def fit(self) -> None:
+#         for epoch in range(self.epochs):
+#             self.model.train()
+#             loss, metrics = 0, 0
 
-    # batch_size x seq_len x in_features
-    def _get_data_ts(self, data: Tensor) -> Tuple[Tensor, Tensor]:
-        data = data.squeeze(1)                                                  # Remove channel dimension
-        batch_size, seq_len, _ = data.size()                                    # (batch_size, seq_len, in_features)
-        ts = torch.ones(batch_size, seq_len, 1, device=self.device) * self.tau  # (batch_size, seq_len)
-        return data, ts
+#             for x, y in tqdm(self.train_loader, desc=f"Epoch {epoch + 1}/{self.epochs}", unit="batch"):
+#                 x, y = x.to(self.device), y.to(self.device)
+#                 y = y.squeeze(1)
 
-    # batch_size x 1 x 784
-    # def _get_data_ts(self, data: Tensor) -> Tuple[Tensor, Tensor]:
-    #     batch_size = data.size(0)
-    #     # data: (batch_size, 1, 28, 28) -> (batch_size, 1, 784)
-    #     data = data.view(batch_size, 1, -1)
-    #     ts = torch.ones(batch_size, 1, 1, device=self.device) * self.tau  # 시퀀스 길이가 1
-    #     return data, ts
+#                 self.optimizer.zero_grad()
 
-    def fit(self) -> None:
-        self.model.train()
+#                 if self.do_lnn:
+#                     batch_size = x.size(0)
+#                     ts = torch.ones(batch_size, self.seq_len, 1, device=x.device) * self.tau
+#                     outputs = self.model(x, ts)
+#                 else:
+#                     outputs = self.model(x)
 
-        for epoch in range(1, self.epochs + 1):
-            for (data, labels) in tqdm(self.train_loader, desc=f"[Epoch {epoch}]"):
-                data, labels = data.to(self.device), labels.to(self.device)
-                self.optimizer.zero_grad()
+#                 loss = self.criterion(outputs, y)
+#                 metric = self.metric(outputs, y)
 
-                data, ts = self._get_data_ts(data)
-                output = self.model(data, ts)
-                output = output[:, -1, :]
+#                 loss.backward()
+#                 self.optimizer.step()
 
-                loss = self.criterion(output, labels)
-                loss.backward()
-                self.optimizer.step()
-            print(f"[Epoch {epoch}] Loss: {loss.item():.4f}")
+#                 loss += loss.item()
+#                 metrics += metric.item()
 
-            # Evaluate the model
-            val_acc = self.eval()
-            print(f"[Epoch {epoch}] Validation Accuracy: {val_acc:.2f}%")
+#             loss /= len(self.train_loader)
+#             metrics /= len(self.train_loader)
+#             print(f"Epoch [{epoch + 1}/{self.epochs}], Loss: {loss:.4f}, Metric: {metrics:.4f}")
 
-    def eval(self) -> float:
-        self.model.eval()
-        correct, total = 0, 0
+#             val_loss, val_metrics = self.eval(self.val_loader)
+#             print(f"Validation Loss: {val_loss:.4f}, Metric: {val_metrics:.4f}")
 
-        with torch.no_grad():
-            for data, labels in tqdm(self.test_loader, desc="[Eval]"):
-                data, labels = data.to(self.device), labels.to(self.device)
+#         test_loss, test_metrics = self.eval(self.test_loader)
+#         print(f"Test Loss: {test_loss:.4f}, Metric: {test_metrics:.4f}")
+#         print("Training complete.")
 
-                data, ts = self._get_data_ts(data)
-                output = self.model(data, ts)
-                output = output[:, -1, :]
-                output = output.argmax(dim=1)
-                
-                correct += (output == labels).sum().item()
-                total += labels.size(0)
+#         # Plotting predictions
+#         if self.plot:
 
-        accuracy = 100 * correct / total
-        return accuracy
+
+
+#             plt.figure(figsize=(14, 6))
+#             plt.plot(test_dates, trues_denorm.numpy(), label='True Price', color='black')
+#             plt.plot(test_dates, preds_denorm.numpy(), label='Predicted Price', color='red', linestyle='--')
+#             plt.title("Predicted vs True Close Price (Test Set)")
+#             plt.xlabel("Date")
+#             plt.ylabel("Price")
+#             plt.legend()
+#             plt.grid(True)
+#             plt.tight_layout()
+#             plt.show()
+
+#         # Save the model
+#         if self.save:
+#             self.save_model(self.save_path)
+#             print(f"Model saved to {self.save_path}")
+
+#     def eval(self, dataloader: DataLoader) -> Tuple[float, float]:
+#         self.model.eval()
+#         loss, metrics = 0, 0
+
+#         with torch.no_grad():
+#             for x, y in dataloader:
+#                 x, y = x.to(self.device), y.to(self.device)
+
+#                 y = y.squeeze(1)
+#                 if self.do_lnn:
+#                     batch_size = x.size(0)
+#                     ts = torch.ones(batch_size, self.seq_len, 1, device=x.device) * self.tau
+#                     outputs = self.model(x, ts)
+#                 else:
+#                     outputs = self.model(x)
+
+#                 loss += self.criterion(outputs, y).item()
+#                 metric += self.metric(outputs, y).item()
+
+#         loss /= len(self.val_loader)
+#         metrics /= len(self.val_loader)
+#         return loss, metrics
 
