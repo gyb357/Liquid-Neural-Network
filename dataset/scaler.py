@@ -2,10 +2,12 @@ import numpy as np
 
 
 class RobustScaler():
-    def __init__(
-            self,
-            data: np.ndarray
-    ) -> None:
+    def __init__(self, data: np.ndarray) -> None:
+        """
+        Args:
+            data (np.ndarray): Input data to fit the scaler.
+        """
+
         # Attributes
         self.median = np.median(data, axis=0)
         self.iqr = np.percentile(data, 75, axis=0) - np.percentile(data, 25, axis=0)
@@ -20,6 +22,11 @@ class RobustScaler():
 
 class StandardScaler():
     def __init__(self, data: np.ndarray) -> None:
+        """
+        Args:
+            data (np.ndarray): Input data to fit the scaler.
+        """
+
         # Attributes
         self.mean = np.mean(data, axis=0)
         self.std = np.std(data, axis=0)

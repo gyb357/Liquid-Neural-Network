@@ -1,8 +1,8 @@
 import torch.nn as nn
 import torch
 from typing import Union, Optional
-from modules import LTCCell, CfCCell, CfCImprovedCell, RNNCell, LSTMCell, GRUCell
 from torch import Tensor
+from . import * # Cells from modules
 
 
 class LNN(nn.Module):
@@ -49,11 +49,13 @@ class LNN(nn.Module):
         # Initialize hidden state
         h = torch.zeros(batch_size, self.hidden_features, device=x.device)
 
-        outputs = x.new_empty(batch_size, seq_len, self.out.out_features)
+        outputs = []
         for t in range(seq_len):
             h = self.cell(x[:, t, :], h, ts[:, t])
-            outputs[:, t, :] = self.out(h)
-        return outputs[:, -1, :]
+            outputs.append(self.out(h))
+
+        outputs = torch.stack(outputs, dim=1)
+        return outputs
 
 
 class RNN(nn.Module):
@@ -77,7 +79,7 @@ class RNN(nn.Module):
         self.hidden_features = hidden_features
 
         # Input layer
-        if self.cell not in [RNNCell, LSTMCell, GRUCell]:
+        if cell not in [RNNCell, LSTMCell, GRUCell]:
             raise ValueError("cell must be 'RNNCell', 'LSTMCell' or 'GRUCell'")
         else:
             self.cell = cell(in_features, hidden_features)
@@ -105,12 +107,14 @@ class RNN(nn.Module):
             if h is None:
                 h = torch.zeros(batch_size, self.hidden_features, device=x.device)
 
-        outputs = x.new_empty(batch_size, seq_len, self.out.out_features)
+        outputs = []
         for t in range(seq_len):
             if self.is_lstm:
                 h, c = self.cell(x[:, t, :], (h, c))
             else:
                 h = self.cell(x[:, t, :], h)
-            outputs[:, t, :] = self.out(h)
-        return outputs[:, -1, :]
+            outputs.append(self.out(h))
+            
+        outputs = torch.stack(outputs, dim=1)
+        return outputs
 

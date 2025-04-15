@@ -1,13 +1,18 @@
 import torch.nn as nn
 import torch
 from torch import Tensor
-
+    
 
 class MAPELoss(nn.Module):
     def __init__(
             self,
             epsilon: float = 1e-6
     ) -> None:
+        """
+        Args:
+            epsilon (float): Small value to avoid division by zero.
+        """
+        
         super(MAPELoss, self).__init__()
         # Attributes
         self.epsilon = epsilon

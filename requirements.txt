@@ -1,6 +1,5 @@
 torch
-torchvision
-torchaudio
 tqdm
-pyyaml
+pandas
 pykrx
+pyyaml
