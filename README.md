@@ -15,15 +15,18 @@ This project aims to apply LNN models to financial time series forecasting, part
 # 🔍 Architecture Overview
 
 ## LTC (Liquid Time-Constant Network)
-The LTC model simulates the internal dynamics of a neuron using an input-dependent time constant. The dynamics are governed by a first-order differential equation:
+The LTC model simulates the internal dynamics of a neuron using an time constant. The dynamics are governed by a first-order differential equation:
 
 $$
 \frac{d\mathbf{x}(t)}{dt} = -\left[ \frac{1}{\tau} + f(\mathbf{x}(t), \mathbf{I}(t), t, \theta) \right] \mathbf{x}(t) + f(\mathbf{x}(t), \mathbf{I}(t), t, \theta)\mathbf{A}.
 $$
 
-Where \( \tau \) is the learnable time constant, \( A \) is a bias term, and \( f \) is a small MLP. The output is computed via integration of these dynamics over time, allowing the model to adapt to different temporal resolutions.
+Where \( τ \) is the learnable time constant, \( A \) is a bias term, and \( f \) is a small MLP. The output is computed via integration of these dynamics over time, allowing the model to adapt to different temporal resolutions.
 
 ## CfC (Closed-form Continuous-time Network)
+
+![cfc](assets/cfc.png)
+
 CfC extends the LTC by solving the ODE analytically. The closed-form solution is used to update the hidden state directly without numerical integration:
 
 $$
