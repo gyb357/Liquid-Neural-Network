@@ -26,8 +26,6 @@ where
 
  The output is computed via integration of these dynamics over time, allowing the model to adapt to different temporal resolutions.
 
- ## CfC (Closed-form Continuous-time Network)
- 
 
 *****
 
